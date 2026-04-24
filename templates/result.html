@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Результаты тестирования{% endblock %}
+
+{% block content %}
+<div class="result-box">
+    <h1>🎉 РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ</h1>
+    
+    <div class="result-info">
+        <p class="specialist-name">Специалист: <strong>{{ name }}</strong></p>
+        
+        <div class="score-circle">
+            <div class="score-number">{{ score|int }}</div>
+            <div class="score-label">баллов</div>
+        </div>
+        
+        <div class="score-details">
+            <p>Выполнено заданий: <strong>{{ correct }} из {{ total }}</strong></p>
+            <p>Процент выполнения: <strong>{{ (correct / total * 100)|int if total > 0 else 0 }}%</strong></p>
+        </div>
+
+        {# BUG FIX: Antes usaba `for i in range(1, total+1)` y asumía que las tareas
+           se completaban en orden (tarea 1, tarea 2, tarea 3...).
+           Ahora muestra el estado real de cada tarea usando task_details del servidor. #}
+        <div class="tasks-summary">
+            <h3>Результат по заданиям:</h3>
+            <ul>
+                {% for task_number, theme, is_correct in task_details %}
+                <li class="{% if is_correct %}completed{% else %}not-completed{% endif %}">
+                    Задание {{ task_number }}: {{ theme }}
+                    {% if is_correct %}
+                        ✓ Выполнено
+                    {% else %}
+                        ✗ Не выполнено
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        {% if score >= 80 %}
+        <div class="feedback good">
+            🎉 Отлично! Вы показали высокий уровень компетенций.
+        </div>
+        {% elif score >= 60 %}
+        <div class="feedback medium">
+            📚 Хороший результат. Рекомендуется повторить некоторые темы.
+        </div>
+        {% else %}
+        <div class="feedback bad">
+            📖 Требуется дополнительное обучение. Обратитесь к администратору.
+        </div>
+        {% endif %}
+    </div>
+    
+    <a href="{{ url_for('login') }}" class="restart-btn">Вернуться на главную</a>
+</div>
+{% endblock %}

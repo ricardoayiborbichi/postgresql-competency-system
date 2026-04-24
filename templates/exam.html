@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}Выполнение заданий - Вариант {{ variant }}{% endblock %}
+
+{% block content %}
+<div class="exam-header">
+    <h1>Вариант {{ variant }} | Тестирование компетенций</h1>
+    <p>Специалист: {{ session.user_name }}</p>
+</div>
+
+<div class="info-box">
+    <p>📌 <strong>Инструкция:</strong> Введите SQL-команду и нажмите «ПРОВЕРИТЬ ШАГ».
+    Выполните все шаги по порядку. После завершения всех шагов нажмите «ПОЛУЧИТЬ ФЛАГ».</p>
+    <p>💡 <strong>Совет:</strong> Команды выполняются в тестовой среде PostgreSQL.
+    Убедитесь, что синтаксис правильный.</p>
+</div>
+
+{% for task in tasks %}
+<div class="task-card" data-task-id="{{ task.id }}" data-task-number="{{ task.number }}">
+    <div class="task-header">
+        <h2>Задание {{ task.number }}: {{ task.theme }}</h2>
+        <div class="task-status {% if task.id in completed_tasks %}task-status-completed{% endif %}"
+             id="task-status-{{ task.id }}">
+            {% if task.id in completed_tasks %}✅ Выполнено{% else %}⏳ Не выполнено{% endif %}
+        </div>
+    </div>
+
+    <div class="task-description">
+        <p>{{ task.description }}</p>
+    </div>
+
+    <div class="steps-container">
+        <h3>Выполните шаги:</h3>
+        {% for step in task.steps %}
+
+        {% set step_done = completed_steps and step.id in completed_steps and completed_steps[step.id] %}
+
+        <div class="step-card" data-step-id="{{ step.id }}" data-step-number="{{ step.number }}">
+            <div class="step-header">
+                <span class="step-number">Шаг {{ step.number }}</span>
+                <span class="step-status {% if step_done %}step-status-completed{% endif %}"
+                      id="step-status-{{ step.id }}">
+                    {% if step_done %}✓ Выполнен{% else %}⏳ Не проверен{% endif %}
+                </span>
+            </div>
+
+            <div class="step-instruction">
+                <p>{{ step.instruction }}</p>
+            </div>
+
+            {% if step.is_flag %}
+            {# Paso del flag: solo botón, sin textarea #}
+            <div class="step-input">
+                <button class="check-btn" style="background:#4caf50"
+                        id="get-flag-btn-{{ task.id }}"
+                        onclick="requestFlag({{ task.id }}, {{ step.id }})"
+                        {% if step_done %}disabled{% endif %}>
+                    🚩 ПОЛУЧИТЬ ФЛАГ
+                </button>
+                <div class="step-result" id="result-{{ step.id }}">
+                    {% if step_done %}<span class="success">✓ Флаг уже получен</span>{% endif %}
+                </div>
+            </div>
+
+            {% else %}
+            {# Paso normal: textarea + botón #}
+            <div class="step-input">
+                <label>Ваш SQL:</label>
+                <textarea class="sql-input" id="sql-{{ step.id }}" rows="4"
+                          placeholder="Введите SQL-команду..."
+                          {% if step_done %}disabled{% endif %}></textarea>
+                <button class="check-btn" id="check-btn-{{ step.id }}"
+                        onclick="checkStep({{ step.id }}, {{ task.id }})"
+                        {% if step_done %}disabled{% endif %}>
+                    ПРОВЕРИТЬ ШАГ
+                </button>
+                <div class="step-result" id="result-{{ step.id }}">
+                    {% if step_done %}<span class="success">✓ Шаг выполнен правильно!</span>{% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Sección del flag: visible si la tarea ya está completada O se mostrará via JS #}
+    <div class="flag-section" id="flag-section-{{ task.id }}"
+         style="{% if task.id not in completed_tasks %}display:none;{% endif %}">
+        <h3>✅ Все шаги выполнены!</h3>
+        <div class="flag-input">
+            <label>Введите флаг для завершения задания:</label>
+            <input type="text" id="flag-{{ task.id }}" placeholder="FLAG{...}"
+                   {% if task.id in completed_tasks %}disabled{% endif %}>
+            <button class="flag-btn" id="submit-flag-btn-{{ task.id }}"
+                    onclick="submitFlag({{ task.id }})"
+                    {% if task.id in completed_tasks %}disabled{% endif %}>
+                ОТПРАВИТЬ ФЛАГ
+            </button>
+            <div class="flag-result" id="flag-result-{{ task.id }}">
+                {% if task.id in completed_tasks %}
+                    <span class="success">✅ Задание уже выполнено!</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<div class="finish-section">
+    <a href="{{ url_for('finish') }}" class="finish-btn">ЗАВЕРШИТЬ ТЕСТИРОВАНИЕ</a>
+</div>
+
+<script>
+// Inicializar estados desde el servidor (se restauran correctamente al recargar la página)
+let stepStatus = {};
+{% for task in tasks %}
+  {% for step in task.steps %}
+    stepStatus[{{ step.id }}] = {{ 'true' if completed_steps and step.id in completed_steps and completed_steps[step.id] else 'false' }};
+  {% endfor %}
+{% endfor %}
+
+// Comprueba si todos los pasos de una tarea están completados
+// Si es así, muestra la sección para enviar el flag
+function checkAllStepsCompleted(taskId) {
+    const taskCard = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+    if (!taskCard) return false;
+
+    const allSteps = taskCard.querySelectorAll('.step-card');
+    let allCompleted = true;
+
+    allSteps.forEach(step => {
+        const stepId = parseInt(step.dataset.stepId);
+        if (!stepStatus[stepId]) allCompleted = false;
+    });
+
+    if (allCompleted && allSteps.length > 0) {
+        const flagSection = document.getElementById(`flag-section-${taskId}`);
+        if (flagSection) flagSection.style.display = 'block';
+    }
+    return allCompleted;
+}
+
+function checkStep(stepId, taskId) {
+    const sqlInput = document.getElementById(`sql-${stepId}`);
+    const resultDiv = document.getElementById(`result-${stepId}`);
+    const checkBtn = document.getElementById(`check-btn-${stepId}`);
+
+    // Bug fix: verificar que los elementos existen
+    if (!sqlInput || !resultDiv) return;
+
+    const sql = sqlInput.value.trim();
+    if (!sql) {
+        resultDiv.innerHTML = '<span class="error">Введите SQL-команду</span>';
+        return;
+    }
+
+    resultDiv.innerHTML = '<span class="loading">⏳ Проверка...</span>';
+    if (checkBtn) checkBtn.disabled = true;
+
+    fetch('/check_step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_id: stepId, user_sql: sql })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = '<span class="success">✓ ' + data.message + '</span>';
+
+            // Actualizar estado visual del paso
+            const statusSpan = document.getElementById(`step-status-${stepId}`);
+            if (statusSpan) {
+                statusSpan.innerHTML = '✓ Выполнен';
+                statusSpan.className = 'step-status step-status-completed';
+            }
+
+            stepStatus[stepId] = true;
+            sqlInput.disabled = true;
+            if (checkBtn) checkBtn.disabled = true;
+
+            checkAllStepsCompleted(taskId);
+        } else {
+            resultDiv.innerHTML = '<span class="error">✗ ' + data.message + '</span>';
+            // Rehabilitar botón si hay error para que pueda reintentar
+            if (checkBtn) checkBtn.disabled = false;
+        }
+    })
+    .catch(err => {
+        resultDiv.innerHTML = '<span class="error">Ошибка соединения: ' + err + '</span>';
+        if (checkBtn) checkBtn.disabled = false;
+    });
+}
+
+function requestFlag(taskId, stepId) {
+    const resultDiv = document.getElementById(`result-${stepId}`);
+    const btn = document.getElementById(`get-flag-btn-${taskId}`);
+
+    if (!resultDiv || !btn) return;
+
+    resultDiv.innerHTML = '<span class="loading">⏳ Получение флага...</span>';
+    btn.disabled = true;
+
+    fetch('/get_flag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = `<span class="success">✓ ${data.message}<br>
+                <strong>🚩 Ваш флаг:
+                <code style="font-size:1.1em;color:#2e7d32">${data.flag_value}</code>
+                </strong></span>`;
+
+            const statusSpan = document.getElementById(`step-status-${stepId}`);
+            if (statusSpan) {
+                statusSpan.innerHTML = '✓ Выполнен';
+                statusSpan.className = 'step-status step-status-completed';
+            }
+
+            stepStatus[stepId] = true;
+
+            // Autocompletar el campo del flag
+            const flagInput = document.getElementById(`flag-${taskId}`);
+            if (flagInput) {
+                flagInput.value = data.flag_value;
+                flagInput.style.borderColor = '#4caf50';
+            }
+
+            checkAllStepsCompleted(taskId);
+        } else {
+            resultDiv.innerHTML = '<span class="error">✗ ' + data.message + '</span>';
+            btn.disabled = false; // Permitir reintentar
+        }
+    })
+    .catch(err => {
+        resultDiv.innerHTML = '<span class="error">Ошибка соединения: ' + err + '</span>';
+        btn.disabled = false;
+    });
+}
+
+function submitFlag(taskId) {
+    const flagInput = document.getElementById(`flag-${taskId}`);
+    const resultDiv = document.getElementById(`flag-result-${taskId}`);
+    const submitBtn = document.getElementById(`submit-flag-btn-${taskId}`);
+
+    if (!flagInput || !resultDiv) return;
+
+    const flag = flagInput.value.trim();
+    if (!flag) {
+        resultDiv.innerHTML = '<span class="error">Введите флаг</span>';
+        return;
+    }
+
+    resultDiv.innerHTML = '<span class="loading">⏳ Проверка флага...</span>';
+    if (submitBtn) submitBtn.disabled = true;
+
+    fetch('/submit_flag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, flag: flag })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = '<span class="success">✅ ' + data.message + '</span>';
+
+            const taskStatus = document.getElementById(`task-status-${taskId}`);
+            if (taskStatus) {
+                taskStatus.innerHTML = '✅ Выполнено';
+                taskStatus.className = 'task-status task-status-completed';
+            }
+
+            flagInput.disabled = true;
+            if (submitBtn) submitBtn.disabled = true;
+        } else {
+            resultDiv.innerHTML = '<span class="error">✗ ' + data.message + '</span>';
+            if (submitBtn) submitBtn.disabled = false; // Permitir reintentar
+        }
+    })
+    .catch(err => {
+        resultDiv.innerHTML = '<span class="error">Ошибка соединения: ' + err + '</span>';
+        if (submitBtn) submitBtn.disabled = false;
+    });
+}
+
+// Al cargar la página: restaurar estado visual de tareas completadas
+document.addEventListener('DOMContentLoaded', function() {
+    {% for task in tasks %}
+        checkAllStepsCompleted({{ task.id }});
+    {% endfor %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Мои результаты{% endblock %}
+
+{% block content %}
+<div style="max-width:900px; margin:0 auto">
+
+    <div class="exam-header" style="margin-bottom:25px">
+        <h1>📊 Мои результаты</h1>
+        <p>Специалист: <strong>{{ user_name }}</strong></p>
+    </div>
+
+    <!-- Botones de filtro por variante -->
+    <div style="display:flex; gap:10px; justify-content:center; margin-bottom:30px; flex-wrap:wrap">
+        <button class="filter-btn active" onclick="filterVariant('all')">Все варианты</button>
+        <button class="filter-btn" onclick="filterVariant(1)">Вариант 1</button>
+        <button class="filter-btn" onclick="filterVariant(2)">Вариант 2</button>
+        <button class="filter-btn" onclick="filterVariant(3)">Вариант 3</button>
+    </div>
+
+    {% if exams %}
+        <div id="exams-container">
+        {% for exam in exams %}
+        <div class="exam-history-card" data-variant="{{ exam.variant }}">
+            <div class="exam-history-header">
+                <div>
+                    <span class="variant-badge">Вариант {{ exam.variant }}</span>
+                    <span style="color:#999; font-size:14px; margin-left:10px">{{ exam.date }}</span>
+                </div>
+                <div class="score-badge {% if exam.score >= 80 %}badge-good{% elif exam.score >= 60 %}badge-medium{% else %}badge-bad{% endif %}">
+                    {{ exam.score|int }} баллов
+                </div>
+            </div>
+
+            <div class="exam-history-body">
+                <p style="margin-bottom:10px">
+                    Выполнено заданий: <strong>{{ exam.correct }} из {{ exam.total }}</strong>
+                </p>
+                <ul class="tasks-summary">
+                    {% for task in exam.tasks %}
+                    <li class="{% if task.is_correct %}completed{% else %}not-completed{% endif %}">
+                        <strong>Задание {{ task.number }}:</strong> {{ task.theme }}
+                        <span style="float:right">
+                            {% if task.is_correct %}✓ Выполнено{% else %}✗ Не выполнено{% endif %}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            {% if exam.score >= 80 %}
+            <div class="feedback good">🎉 Отличный результат! Высокий уровень компетенций.</div>
+            {% elif exam.score >= 60 %}
+            <div class="feedback medium">📚 Хороший результат. Рекомендуется повторить некоторые темы.</div>
+            {% else %}
+            <div class="feedback bad">📖 Требуется дополнительное обучение.</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        </div>
+
+    {% else %}
+        <div class="info-box" style="text-align:center; padding:40px">
+            <p style="font-size:18px">📭 Результатов пока нет.</p>
+            <p>Пройдите тестирование, чтобы увидеть свои результаты.</p>
+        </div>
+    {% endif %}
+
+    <div style="text-align:center; margin-top:30px; display:flex; gap:15px; justify-content:center; flex-wrap:wrap">
+        <a href="{{ url_for('dashboard') }}" class="btn" style="padding:12px 30px; font-size:16px">
+            ← Назад
+        </a>
+        <a href="{{ url_for('select_variant') }}" class="btn" style="padding:12px 30px; font-size:16px; background:linear-gradient(135deg,#667eea,#764ba2)">
+            🎯 Пройти тест снова
+        </a>
+    </div>
+</div>
+
+<style>
+.exam-history-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 25px;
+    margin-bottom: 20px;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.exam-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+}
+.variant-badge {
+    background: #667eea;
+    color: white;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.score-badge {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 20px;
+    color: white;
+}
+.badge-good   { background: #4caf50; }
+.badge-medium { background: #ff9800; }
+.badge-bad    { background: #f44336; }
+.tasks-summary { list-style: none; padding: 0; margin: 0; }
+.tasks-summary li {
+    padding: 8px 12px;
+    margin: 5px 0;
+    border-radius: 6px;
+    font-size: 14px;
+    overflow: hidden;
+}
+.tasks-summary li.completed     { background: #e8f5e9; color: #2e7d32; }
+.tasks-summary li.not-completed { background: #ffebee; color: #c62828; }
+.filter-btn {
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.filter-btn.active, .filter-btn:hover {
+    background: #667eea;
+    color: white;
+}
+</style>
+
+<script>
+function filterVariant(v) {
+    // Actualizar botones
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Mostrar/ocultar tarjetas
+    document.querySelectorAll('.exam-history-card').forEach(card => {
+        if (v === 'all' || parseInt(card.dataset.variant) === v) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

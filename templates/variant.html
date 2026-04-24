@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Выбор варианта{% endblock %}
+
+{% block content %}
+<div class="variant-box">
+    <h1>Выберите вариант тестирования</h1>
+    
+    <div class="variants">
+        <div class="variant-card">
+            <h2>Вариант 1</h2>
+            <p>3 задания по безопасности PostgreSQL</p>
+            <a href="{{ url_for('exam', variant=1) }}" class="btn">Выбрать</a>
+        </div>
+        
+        <div class="variant-card">
+            <h2>Вариант 2</h2>
+            <p>3 задания по безопасности PostgreSQL</p>
+            <a href="{{ url_for('exam', variant=2) }}" class="btn">Выбрать</a>
+        </div>
+        
+        <div class="variant-card">
+            <h2>Вариант 3</h2>
+            <p>3 задания по безопасности PostgreSQL</p>
+            <a href="{{ url_for('exam', variant=3) }}" class="btn">Выбрать</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
